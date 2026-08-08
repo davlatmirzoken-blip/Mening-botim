@@ -23,7 +23,7 @@ app = Client(
 )
 
 last_update = {}
-MAX_SIZE_BYTES = 1950 * 1024 * 1024  # Telegram uchun 1.95 GB chegara
+MAX_SIZE_BYTES = 1950 * 1024 * 1024  # 1.95 GB chegara
 
 def find_direct_video_link(page_url):
     headers = {
@@ -127,15 +127,21 @@ async def downloader(client, message: Message):
     loop = asyncio.get_event_loop()
     target_url = await loop.run_in_executor(None, find_direct_video_link, raw_url)
 
-    await msg.edit_text("⚡️ Serverga maksimal sifatda yuklanmoqda...")
+    await msg.edit_text("⚡️ Serverga yuklanmoqda...")
 
-    # YUQORI SIFATLI YDL_OPTS SOZLAMASI
+    # BARCHA XATOLIKLAR VA BLOKIROVKALAR YECHIMI KO'RSATILGAN YDL_OPTS
     ydl_opts = {
         'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
         'outtmpl': 'downloads/%(id)s.%(ext)s',
         'merge_output_format': 'mp4',
         'quiet': True,
         'no_warnings': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'web'],
+                'skip': ['hls', 'dash']
+            }
+        },
         'postprocessor_args': {
             'ffmpeg': ['-c:v', 'copy', '-c:a', 'aac']
         },
@@ -210,4 +216,4 @@ if __name__ == '__main__':
     if not os.path.exists('downloads'):
         os.makedirs('downloads')
     app.run()
-                                
+        

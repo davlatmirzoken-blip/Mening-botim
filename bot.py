@@ -7,12 +7,17 @@ from pyrogram import Client, filters
 from pyrogram.types import Message
 import yt_dlp
 
-# Kalitlar Render environment variables'dan avtomatik olinadi
-API_ID = int(os.environ.get("30154083"))
-API_HASH = os.environ.get("5007eb6dd3a2ccd1bcbc16c2a1cfa7a5")
-BOT_TOKEN = os.environ.get("8766736272:AAHy5uq8w3QUq7epO8kGH8ikFP1QA5jvvNo")
+# --- KONFIGURATSIYA (TAYYOR SOZLAMALAR) ---
+API_ID = 30154083
+API_HASH = "5007eb6dd3a2ccd1bcbc16c2a1cfa7a5"
+BOT_TOKEN = "8766736272:AAHy5uq8w3QUq7epO8kGH8ikFP1QA5jvvNo"
 
-app = Client("ultra_render_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+app = Client(
+    "ultra_render_bot",
+    api_id=API_ID,
+    api_hash=API_HASH,
+    bot_token=BOT_TOKEN
+)
 
 last_update = {}
 MAX_SIZE_BYTES = 1950 * 1024 * 1024  # Telegram uchun 1.95 GB chegara
@@ -35,7 +40,10 @@ def get_video_duration(file_path):
         "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", file_path
     ]
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    return float(result.stdout.strip())
+    try:
+        return float(result.stdout.strip())
+    except Exception:
+        return 0.0
 
 def split_video(file_path):
     file_size = os.path.getsize(file_path)
@@ -43,6 +51,9 @@ def split_video(file_path):
         return [file_path]
 
     total_duration = get_video_duration(file_path)
+    if total_duration == 0:
+        return [file_path]
+
     parts_count = math.ceil(file_size / MAX_SIZE_BYTES)
     part_duration = math.floor(total_duration / parts_count)
 
@@ -62,11 +73,11 @@ def split_video(file_path):
         if os.path.exists(output_file):
             split_files.append(output_file)
 
-    return split_files
+    return split_files if split_files else [file_path]
 
 @app.on_message(filters.command("start"))
 async def start(client, message: Message):
-    await message.reply_text("⚡️ **Ultra Premium Media Bot (Render Server)!**\n\nMenga istalgan video havolasini yuboring. Katta hajmdagi videolar bo'lsa avtomatik bo'lib yuboriladi.")
+    await message.reply_text("⚡️ **Ultra Premium Media Bot!**\n\nMenga istalgan video havolasini yuboring. Katta hajmdagi videolar bo'lsa avtomatik bo'lib yuboriladi.")
 
 @app.on_message(filters.text & filters.private)
 async def downloader(client, message: Message):
@@ -143,10 +154,16 @@ async def downloader(client, message: Message):
         if msg.id in last_update:
             del last_update[msg.id]
         if file_path and os.path.exists(file_path):
-            os.remove(file_path)
+            try:
+                os.remove(file_path)
+            except Exception:
+                pass
         for p in parts:
             if os.path.exists(p):
-                os.remove(p)
+                try:
+                    os.remove(p)
+                except Exception:
+                    pass
 
 if __name__ == '__main__':
     if not os.path.exists('downloads'):

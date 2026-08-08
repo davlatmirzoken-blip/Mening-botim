@@ -8,9 +8,9 @@ from pyrogram.types import Message
 import yt_dlp
 
 # Kalitlar Render environment variables'dan avtomatik olinadi
-API_ID = int(os.environ.get("API_ID"))
-API_HASH = os.environ.get("API_HASH")
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
+API_ID = int(os.environ.get("30154083"))
+API_HASH = os.environ.get("5007eb6dd3a2ccd1bcbc16c2a1cfa7a5")
+BOT_TOKEN = os.environ.get("8766736272:AAHy5uq8w3QUq7epO8kGH8ikFP1QA5jvvNo")
 
 app = Client("ultra_render_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 

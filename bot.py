@@ -26,7 +26,6 @@ last_update = {}
 MAX_SIZE_BYTES = 1950 * 1024 * 1024  # Telegram uchun 1.95 GB chegara
 
 def find_direct_video_link(page_url):
-    """Veb-saytlar HTML kodi ichidan video havolasini ajratib olish funksiyasi"""
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
     }
@@ -37,19 +36,16 @@ def find_direct_video_link(page_url):
         
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # 1. <video> va <source> teglari ichidan mp4/m3u8 qidirish
         for video in soup.find_all(['video', 'source']):
             src = video.get('src')
             if src and ('.mp4' in src or '.m3u8' in src):
                 return src if src.startswith('http') else requests.compat.urljoin(page_url, src)
 
-        # 2. iframe ichidagi pleyer manzilini qidirish
         for iframe in soup.find_all('iframe'):
             src = iframe.get('src')
             if src and ('player' in src or 'embed' in src or '.mp4' in src or '.m3u8' in src):
                 return src if src.startswith('http') else requests.compat.urljoin(page_url, src)
 
-        # 3. JavaScript kodlari ichidan .mp4 yoki .m3u8 havolalarini regex bilan ajratib olish
         matches = re.findall(r'https?://[^\s"\']+\.(?:mp4|m3u8)', response.text)
         if matches:
             return matches[0]
@@ -128,18 +124,21 @@ async def downloader(client, message: Message):
 
     msg = await message.reply_text("⚡️ Sayt tahlil qilinmoqda...")
 
-    # Sayt ichidan video havolasini qidirib ko'ramiz
     loop = asyncio.get_event_loop()
     target_url = await loop.run_in_executor(None, find_direct_video_link, raw_url)
 
-    await msg.edit_text("⚡️ Serverga yuklanmoqda...")
+    await msg.edit_text("⚡️ Serverga maksimal sifatda yuklanmoqda...")
 
+    # YUQORI SIFATLI YDL_OPTS SOZLAMASI
     ydl_opts = {
-        'format': 'bestvideo+bestaudio/best',
+        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
         'outtmpl': 'downloads/%(id)s.%(ext)s',
         'merge_output_format': 'mp4',
         'quiet': True,
         'no_warnings': True,
+        'postprocessor_args': {
+            'ffmpeg': ['-c:v', 'copy', '-c:a', 'aac']
+        },
         'http_headers': {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         }
@@ -181,7 +180,7 @@ async def downloader(client, message: Message):
                 await client.send_video(
                     chat_id=message.chat.id,
                     video=part,
-                    caption=f"✅ Video yuklandi nxx 😂 {part_info}",
+                    caption=f"✅ Video yuklandi {part_info}",
                     supports_streaming=True,
                     progress=progress,
                     progress_args=(msg, part_info)
@@ -211,4 +210,4 @@ if __name__ == '__main__':
     if not os.path.exists('downloads'):
         os.makedirs('downloads')
     app.run()
-    
+                                

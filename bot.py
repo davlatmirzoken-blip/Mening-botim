@@ -1,13 +1,16 @@
 import os
+import re
 import time
 import math
 import asyncio
 import subprocess
+import requests
+from bs4 import BeautifulSoup
 from pyrogram import Client, filters
 from pyrogram.types import Message
 import yt_dlp
 
-# --- KONFIGURATSIYA (TAYYOR SOZLAMALAR) ---
+# --- KONFIGURATSIYA ---
 API_ID = 30154083
 API_HASH = "5007eb6dd3a2ccd1bcbc16c2a1cfa7a5"
 BOT_TOKEN = "8766736272:AAHy5uq8w3QUq7epO8kGH8ikFP1QA5jvvNo"
@@ -21,6 +24,40 @@ app = Client(
 
 last_update = {}
 MAX_SIZE_BYTES = 1950 * 1024 * 1024  # Telegram uchun 1.95 GB chegara
+
+def find_direct_video_link(page_url):
+    """Veb-saytlar HTML kodi ichidan video havolasini ajratib olish funksiyasi"""
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+    }
+    try:
+        response = requests.get(page_url, headers=headers, timeout=10)
+        if response.status_code != 200:
+            return page_url
+        
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # 1. <video> va <source> teglari ichidan mp4/m3u8 qidirish
+        for video in soup.find_all(['video', 'source']):
+            src = video.get('src')
+            if src and ('.mp4' in src or '.m3u8' in src):
+                return src if src.startswith('http') else requests.compat.urljoin(page_url, src)
+
+        # 2. iframe ichidagi pleyer manzilini qidirish
+        for iframe in soup.find_all('iframe'):
+            src = iframe.get('src')
+            if src and ('player' in src or 'embed' in src or '.mp4' in src or '.m3u8' in src):
+                return src if src.startswith('http') else requests.compat.urljoin(page_url, src)
+
+        # 3. JavaScript kodlari ichidan .mp4 yoki .m3u8 havolalarini regex bilan ajratib olish
+        matches = re.findall(r'https?://[^\s"\']+\.(?:mp4|m3u8)', response.text)
+        if matches:
+            return matches[0]
+
+    except Exception:
+        pass
+        
+    return page_url
 
 async def progress(current, total, message: Message, part_info=""):
     msg_id = message.id
@@ -77,19 +114,25 @@ def split_video(file_path):
 
 @app.on_message(filters.command("start"))
 async def start(client, message: Message):
-    await message.reply_text("⚡️ **Ultra Premium Media Bot!**\n\nMenga istalgan video havolasini yuboring. Katta hajmdagi videolar bo'lsa avtomatik bo'lib yuboriladi.")
+    await message.reply_text("⚡️ **Ultra Premium Media Bot!**\n\nMenga istalgan video yoki sayt havolasini yuboring. Katta hajmdagi videolar bo'lsa avtomatik bo'lib yuboriladi.")
 
 @app.on_message(filters.text & filters.private)
 async def downloader(client, message: Message):
-    url = message.text.strip()
-    if url.startswith("/"):
+    raw_url = message.text.strip()
+    if raw_url.startswith("/"):
         return
 
-    if not (url.startswith("http://") or url.startswith("https://")):
+    if not (raw_url.startswith("http://") or raw_url.startswith("https://")):
         await message.reply_text("❌ Noto'g'ri havola!")
         return
 
-    msg = await message.reply_text("⚡️ Serverga yuklanmoqda...")
+    msg = await message.reply_text("⚡️ Sayt tahlil qilinmoqda...")
+
+    # Sayt ichidan video havolasini qidirib ko'ramiz
+    loop = asyncio.get_event_loop()
+    target_url = await loop.run_in_executor(None, find_direct_video_link, raw_url)
+
+    await msg.edit_text("⚡️ Serverga yuklanmoqda...")
 
     ydl_opts = {
         'format': 'bestvideo+bestaudio/best',
@@ -106,10 +149,9 @@ async def downloader(client, message: Message):
     parts = []
 
     try:
-        loop = asyncio.get_event_loop()
         def extract():
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
+                info = ydl.extract_info(target_url, download=True)
                 return ydl.prepare_filename(info)
 
         file_path = await loop.run_in_executor(None, extract)
@@ -139,7 +181,7 @@ async def downloader(client, message: Message):
                 await client.send_video(
                     chat_id=message.chat.id,
                     video=part,
-                    caption=f"✅ Video yuklandi {part_info}",
+                    caption=f"✅ Video yuklandi nxx 😂 {part_info}",
                     supports_streaming=True,
                     progress=progress,
                     progress_args=(msg, part_info)
@@ -169,3 +211,4 @@ if __name__ == '__main__':
     if not os.path.exists('downloads'):
         os.makedirs('downloads')
     app.run()
+    
